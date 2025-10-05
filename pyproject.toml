@@ -1,0 +1,30 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.16.4",
+    "beautifulsoup4>=4.13.4",
+    "boto3>=1.38.36",
+    "elasticsearch>=9.1.0",
+    "fastapi[standard]>=0.115.12",
+    "langchain-community>=0.3.27",
+    "langchain-core>=0.3.68",
+    "langchain-huggingface>=0.3.0",
+    "langchain-mistralai>=0.2.11",
+    "langchain-pinecone>=0.2.8",
+    "langchain-text-splitters>=0.3.8",
+    "langchain-xai>=0.2.4",
+    "langgraph>=0.5.3",
+    "psycopg2>=2.9.10",
+    "pydantic>=2.11.7",
+    "pydantic-settings>=2.9.1",
+    "pypdf>=5.8.0",
+    "pytesseract>=0.3.13",
+    "python-magic>=0.4.27",
+    "sentence-transformers>=2.7.0",
+]
+[tool.setuptools]
+packages = ["app"]
