@@ -27,6 +27,25 @@ class ConsultationDB(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class ChatMessageDB(Base):
+    __tablename__ = "chat_messages"
+    id = Column(Integer, primary_key=True, index=True)
+    consultation_id = Column(Integer, ForeignKey("consultations.id"), nullable=False)
+    sender = Column(String, nullable=False)  # 'patient' or 'doctor'
+    message = Column(Text, nullable=False)
+    message_type = Column(String, default="text")  # 'text', 'file', 'voice'
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+class FileAttachmentDB(Base):
+    __tablename__ = "file_attachments"
+    id = Column(Integer, primary_key=True, index=True)
+    consultation_id = Column(Integer, ForeignKey("consultations.id"), nullable=False)
+    filename = Column(String, nullable=False)
+    file_url = Column(String, nullable=False)
+    file_type = Column(String, nullable=False)
+    file_size = Column(Integer, nullable=False)
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+
 class VisitDB(Base):
     __tablename__ = "visits"
     id = Column(Integer, primary_key=True, index=True)
