@@ -25,6 +25,10 @@ dependencies = [
     "pytesseract>=0.3.13",
     "python-magic>=0.4.27",
     "sentence-transformers>=2.7.0",
+    "transformers>=4.46.0",
+    "torch>=2.4.0",
+    "torchaudio>=2.4.0",
+    "datasets>=3.0.0",
 ]
 [tool.setuptools]
 packages = ["app"]

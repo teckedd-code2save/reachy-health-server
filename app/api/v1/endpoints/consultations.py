@@ -9,8 +9,10 @@ from app.services.consultation import ConsultationService, ChatMessageService, F
 from app.services.file_processor import FileProcessor
 from app.services.s3_service import S3Service
 from app.services.file_processor import FileProcessor
+from app.services.transcription_service import get_transcription_service
 from typing import List, Optional
 from datetime import datetime
+import os
 
 router = APIRouter()
 s3_service = S3Service()
@@ -193,3 +195,125 @@ def get_consultation_files(consultation_id: int, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to retrieve files: {str(e)}")
+
+@router.post("/{consultation_id}/transcribe", response_model=dict)
+async def transcribe_consultation_audio(
+    consultation_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Transcribe the audio recording for a consultation using Whisper model.
+    Updates the consultation's transcript field.
+    """
+    try:
+        # Verify consultation exists
+        consultation = ConsultationService.get_by_id(db, consultation_id)
+        if not consultation:
+            raise HTTPException(status_code=404, detail="Consultation not found")
+        
+        # Check if consultation has audio
+        if not consultation.audio_url:
+            raise HTTPException(status_code=400, detail="Consultation has no audio recording")
+        
+        # Download audio from S3 or fetch from URL
+        # Try to download from S3 using the URL as a presigned URL
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.get(consultation.audio_url)
+                if response.status_code != 200:
+                    raise HTTPException(status_code=500, detail="Failed to download audio file")
+                audio_content = response.content
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to download audio: {str(e)}")
+        
+        # Get transcription service
+        transcription_service = get_transcription_service()
+        
+        # Determine audio format from URL or content type
+        audio_format = "webm"  # Default, could be extracted from content_type
+        if consultation.audio_url:
+            if ".wav" in consultation.audio_url:
+                audio_format = "wav"
+            elif ".mp3" in consultation.audio_url:
+                audio_format = "mp3"
+            elif ".m4a" in consultation.audio_url:
+                audio_format = "m4a"
+        
+        # Transcribe audio
+        result = transcription_service.transcribe_bytes(audio_content, audio_format=audio_format)
+        transcript_text = result.get("transcript", "")
+        
+        if not transcript_text:
+            raise HTTPException(status_code=500, detail="Transcription returned empty result")
+        
+        # Update consultation with transcript
+        consultation.transcript = transcript_text
+        db.commit()
+        db.refresh(consultation)
+        
+        return {
+            "message": "Transcription completed successfully",
+            "transcript": transcript_text,
+            "consultation_id": consultation_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
+
+@router.post("/transcribe", response_model=dict)
+async def transcribe_audio_file(
+    audio: UploadFile = File(...),
+    detect_language: bool = Form(False)
+):
+    """
+    Standalone transcription endpoint for audio files.
+    Used for landing page voice transcription and language detection.
+    
+    Args:
+        audio: Audio file to transcribe
+        detect_language: Whether to attempt language detection (optional)
+    """
+    try:
+        # Read audio file
+        audio_content = await audio.read()
+        
+        # Get transcription service
+        transcription_service = get_transcription_service()
+        
+        # Determine audio format
+        audio_format = "webm"  # Default
+        if audio.content_type:
+            if "wav" in audio.content_type:
+                audio_format = "wav"
+            elif "mp3" in audio.content_type:
+                audio_format = "mp3"
+            elif "m4a" in audio.content_type or "mp4" in audio.content_type:
+                audio_format = "m4a"
+        elif audio.filename:
+            ext = audio.filename.split('.')[-1].lower()
+            if ext in ["wav", "mp3", "m4a", "mp4"]:
+                audio_format = ext
+        
+        # Transcribe audio
+        result = transcription_service.transcribe_bytes(audio_content, audio_format=audio_format)
+        transcript_text = result.get("transcript", "")
+        
+        response = {
+            "transcript": transcript_text,
+            "text": transcript_text  # Alias for convenience
+        }
+        
+        # Language detection (simplified - can be enhanced)
+        if detect_language:
+            # Basic language hints based on common words/phrases
+            detected_lang = None
+            text_lower = transcript_text.lower()
+            # This is a placeholder - you might want to use a dedicated language detection model
+            # or enhance the Whisper output parsing
+            response["detected_language"] = detected_lang
+        
+        return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
